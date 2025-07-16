@@ -146,6 +146,20 @@ module ActiveRecord
           end
         end
 
+        # Move this item so it is immediately above +item+ in the list.
+        def move_above(item)
+          return unless item
+          insert_at(item.send(position_column) -
+                    (in_list? && self.send(position_column).to_i < item.send(position_column).to_i ? 1 : 0))
+        end
+
+        # Move this item so it is immediately below +item+ in the list.
+        def move_below(item)
+          return unless item
+          insert_at(item.send(position_column) +
+                    (in_list? && self.send(position_column).to_i > item.send(position_column).to_i ? 1 : 0))
+        end
+
         # Removes the item from the list.
         def remove_from_list
           if in_list?

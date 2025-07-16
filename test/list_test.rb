@@ -108,6 +108,18 @@ class ListTest < Test::Unit::TestCase
     assert_equal [1, 2, 4, 3], ListMixin.find(:all, :conditions => 'parent_id = 5', :order => 'pos').map(&:id)
   end
 
+  def test_move_above
+    assert_equal [1, 2, 3, 4], ListMixin.find(:all, :conditions => 'parent_id = 5', :order => 'pos').map(&:id)
+    ListMixin.find(4).move_above(ListMixin.find(2))
+    assert_equal [1, 4, 2, 3], ListMixin.find(:all, :conditions => 'parent_id = 5', :order => 'pos').map(&:id)
+  end
+
+  def test_move_below
+    assert_equal [1, 2, 3, 4], ListMixin.find(:all, :conditions => 'parent_id = 5', :order => 'pos').map(&:id)
+    ListMixin.find(1).move_below(ListMixin.find(3))
+    assert_equal [2, 3, 1, 4], ListMixin.find(:all, :conditions => 'parent_id = 5', :order => 'pos').map(&:id)
+  end
+
   def test_next_prev
     assert_equal ListMixin.find(2), ListMixin.find(1).lower_item
     assert_nil ListMixin.find(1).higher_item
@@ -304,6 +316,18 @@ class ListSubTest < Test::Unit::TestCase
     assert_equal [1, 2, 4, 3], ListMixin.find(:all, :conditions => 'parent_id = 5000', :order => 'pos').map(&:id)
   end
 
+  def test_move_above
+    assert_equal [1, 2, 3, 4], ListMixin.find(:all, :conditions => 'parent_id = 5000', :order => 'pos').map(&:id)
+    ListMixin.find(4).move_above(ListMixin.find(2))
+    assert_equal [1, 4, 2, 3], ListMixin.find(:all, :conditions => 'parent_id = 5000', :order => 'pos').map(&:id)
+  end
+
+  def test_move_below
+    assert_equal [1, 2, 3, 4], ListMixin.find(:all, :conditions => 'parent_id = 5000', :order => 'pos').map(&:id)
+    ListMixin.find(1).move_below(ListMixin.find(3))
+    assert_equal [2, 3, 1, 4], ListMixin.find(:all, :conditions => 'parent_id = 5000', :order => 'pos').map(&:id)
+  end
+
   def test_next_prev
     assert_equal ListMixin.find(2), ListMixin.find(1).lower_item
     assert_nil ListMixin.find(1).higher_item
@@ -410,6 +434,18 @@ class ArrayScopeListTest < Test::Unit::TestCase
     assert_equal [1, 2, 3, 4], ArrayScopeListMixin.find(:all, :conditions => "parent_id = 5 AND parent_type = 'ParentClass'", :order => 'pos').map(&:id)
     ArrayScopeListMixin.find(3).move_to_bottom
     assert_equal [1, 2, 4, 3], ArrayScopeListMixin.find(:all, :conditions => "parent_id = 5 AND parent_type = 'ParentClass'", :order => 'pos').map(&:id)
+  end
+
+  def test_move_above
+    assert_equal [1, 2, 3, 4], ArrayScopeListMixin.find(:all, :conditions => "parent_id = 5 AND parent_type = 'ParentClass'", :order => 'pos').map(&:id)
+    ArrayScopeListMixin.find(4).move_above(ArrayScopeListMixin.find(2))
+    assert_equal [1, 4, 2, 3], ArrayScopeListMixin.find(:all, :conditions => "parent_id = 5 AND parent_type = 'ParentClass'", :order => 'pos').map(&:id)
+  end
+
+  def test_move_below
+    assert_equal [1, 2, 3, 4], ArrayScopeListMixin.find(:all, :conditions => "parent_id = 5 AND parent_type = 'ParentClass'", :order => 'pos').map(&:id)
+    ArrayScopeListMixin.find(1).move_below(ArrayScopeListMixin.find(3))
+    assert_equal [2, 3, 1, 4], ArrayScopeListMixin.find(:all, :conditions => "parent_id = 5 AND parent_type = 'ParentClass'", :order => 'pos').map(&:id)
   end
 
   def test_next_prev
