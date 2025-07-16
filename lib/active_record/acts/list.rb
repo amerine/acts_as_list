@@ -182,7 +182,7 @@ module ActiveRecord
         def higher_item
           return nil unless in_list?
           acts_as_list_class.where(
-            "#{scope_condition} AND #{position_column} = #{(send(position_column).to_i - 1).to_s}"
+            ["#{scope_condition} AND #{position_column} = ?", send(position_column).to_i - 1]
           ).first
         end
 
@@ -190,7 +190,7 @@ module ActiveRecord
         def lower_item
           return nil unless in_list?
           acts_as_list_class.where(
-            "#{scope_condition} AND #{position_column} = #{(send(position_column).to_i + 1).to_s}"
+            ["#{scope_condition} AND #{position_column} = ?", send(position_column).to_i + 1]
           ).first
         end
 
@@ -221,8 +221,11 @@ module ActiveRecord
           # Returns the bottom item
           def bottom_item(except = nil)
             conditions = scope_condition
-            conditions = "#{conditions} AND #{self.class.primary_key} != #{except.id}" if except
-            acts_as_list_class.where(conditions).order("#{position_column} DESC").first
+            if except
+              acts_as_list_class.where(["#{conditions} AND #{self.class.primary_key} != ?", except.id]).order("#{position_column} DESC").first
+            else
+              acts_as_list_class.where(conditions).order("#{position_column} DESC").first
+            end
           end
 
           # Forces item to assume the bottom position in the list.
@@ -238,7 +241,7 @@ module ActiveRecord
           # This has the effect of moving all the higher items up one.
           def decrement_positions_on_higher_items(position)
             acts_as_list_class.where(
-              "#{scope_condition} AND #{position_column} <= #{position}"
+              ["#{scope_condition} AND #{position_column} <= ?", position]
             ).update_all("#{position_column} = (#{position_column} - 1)")
           end
 
@@ -246,7 +249,7 @@ module ActiveRecord
           def decrement_positions_on_lower_items
             return unless in_list?
             acts_as_list_class.where(
-              "#{scope_condition} AND #{position_column} > #{send(position_column).to_i}"
+              ["#{scope_condition} AND #{position_column} > ?", send(position_column).to_i]
             ).update_all("#{position_column} = (#{position_column} - 1)")
           end
 
@@ -254,21 +257,21 @@ module ActiveRecord
           def increment_positions_on_higher_items
             return unless in_list?
             acts_as_list_class.where(
-              "#{scope_condition} AND #{position_column} < #{send(position_column).to_i}"
+              ["#{scope_condition} AND #{position_column} < ?", send(position_column).to_i]
             ).update_all("#{position_column} = (#{position_column} + 1)")
           end
 
           # This has the effect of moving all the lower items down one.
           def increment_positions_on_lower_items(position)
             acts_as_list_class.where(
-              "#{scope_condition} AND #{position_column} >= #{position}"
+              ["#{scope_condition} AND #{position_column} >= ?", position]
            ).update_all("#{position_column} = (#{position_column} + 1)")
           end
 
           # Increments position (<tt>position_column</tt>) of all items in the list.
           def increment_positions_on_all_items
             acts_as_list_class.where(
-              "#{scope_condition}"
+              scope_condition
             ).update_all("#{position_column} = (#{position_column} + 1)")
           end
 
