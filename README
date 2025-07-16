@@ -20,6 +20,7 @@ Example
   todo_list.last.move_higher
   todo_list.first.move_below(todo_list.last)
   todo_list.last.move_above(todo_list.first)
+  todo_list.first.swap_positions_with(todo_list.last)
 
 
 Copyright (c) 2007 David Heinemeier Hansson, released under the MIT license
