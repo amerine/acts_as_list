@@ -30,7 +30,8 @@ def setup_db
       t.column :pos, :integer
       t.column :parent_id, :integer
       t.column :parent_type, :string
-      t.column :created_at, :datetime      
+      t.column :discarded_at, :datetime
+      t.column :created_at, :datetime
       t.column :updated_at, :datetime
     end
   end
@@ -65,6 +66,12 @@ end
 
 class ArrayScopeListMixin < Mixin
   acts_as_list :column => "pos", :scope => [:parent_id, :parent_type]
+
+  def self.table_name() "mixins" end
+end
+
+class SoftDeleteListMixin < Mixin
+  acts_as_list :column => "pos", :scope => :parent, :soft_delete_mode => true
 
   def self.table_name() "mixins" end
 end
@@ -569,5 +576,27 @@ class ArrayScopeListTest < Test::Unit::TestCase
     assert_equal 3, ArrayScopeListMixin.find(4).pos
   end 
   
+end
+
+class SoftDeleteListTest < Test::Unit::TestCase
+
+  def setup
+    setup_db
+    (1..3).each { |counter| SoftDeleteListMixin.create! :pos => counter, :parent_id => 1 }
+  end
+
+  def teardown
+    teardown_db
+  end
+
+  def test_soft_deleted_items_are_ignored
+    item2 = SoftDeleteListMixin.find(2)
+    item2.update_attribute(:discarded_at, Time.now)
+
+    SoftDeleteListMixin.find(1).move_lower
+    assert_equal [3, 1], SoftDeleteListMixin.where(:discarded_at => nil).order('pos').map(&:id)
+    assert_equal [3,2,1], SoftDeleteListMixin.order('pos').map(&:id)
+  end
+
 end
 
