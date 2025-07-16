@@ -23,6 +23,24 @@ module ActiveRecord
       #   todo_list.first.move_to_bottom
       #   todo_list.last.move_higher
       module ClassMethods
+        # Rails 7 removed +sanitize_sql_hash_for_conditions+, so we provide a
+        # replacement that works across modern versions.
+        def sanitize_sql_hash_for_conditions(attrs)
+          table = connection.quote_table_name(table_name)
+          attrs.map do |attr, value|
+            if respond_to?(:type_for_attribute)
+              type  = type_for_attribute(attr.to_s)
+              value = type.serialize(type.cast(value))
+            end
+            col = connection.quote_column_name(attr)
+            if value.nil?
+              "#{table}.#{col} IS NULL"
+            else
+              "#{table}.#{col} = #{connection.quote(value)}"
+            end
+          end.join(' AND ')
+        end unless method_defined?(:sanitize_sql_hash_for_conditions)
+
         # Configuration options are:
         #
         # * +column+ - specifies the column name to use for keeping the position integer (default: +position+)
@@ -159,17 +177,17 @@ module ActiveRecord
         # Return the next higher item in the list.
         def higher_item
           return nil unless in_list?
-          acts_as_list_class.find(:first, :conditions =>
+          acts_as_list_class.where(
             "#{scope_condition} AND #{position_column} = #{(send(position_column).to_i - 1).to_s}"
-          )
+          ).first
         end
 
         # Return the next lower item in the list.
         def lower_item
           return nil unless in_list?
-          acts_as_list_class.find(:first, :conditions =>
+          acts_as_list_class.where(
             "#{scope_condition} AND #{position_column} = #{(send(position_column).to_i + 1).to_s}"
-          )
+          ).first
         end
 
         # Test if this record is in a list
@@ -200,7 +218,7 @@ module ActiveRecord
           def bottom_item(except = nil)
             conditions = scope_condition
             conditions = "#{conditions} AND #{self.class.primary_key} != #{except.id}" if except
-            acts_as_list_class.find(:first, :conditions => conditions, :order => "#{position_column} DESC")
+            acts_as_list_class.where(conditions).order("#{position_column} DESC").first
           end
 
           # Forces item to assume the bottom position in the list.
@@ -215,39 +233,39 @@ module ActiveRecord
 
           # This has the effect of moving all the higher items up one.
           def decrement_positions_on_higher_items(position)
-            acts_as_list_class.update_all(
-              "#{position_column} = (#{position_column} - 1)", "#{scope_condition} AND #{position_column} <= #{position}"
-            )
+            acts_as_list_class.where(
+              "#{scope_condition} AND #{position_column} <= #{position}"
+            ).update_all("#{position_column} = (#{position_column} - 1)")
           end
 
           # This has the effect of moving all the lower items up one.
           def decrement_positions_on_lower_items
             return unless in_list?
-            acts_as_list_class.update_all(
-              "#{position_column} = (#{position_column} - 1)", "#{scope_condition} AND #{position_column} > #{send(position_column).to_i}"
-            )
+            acts_as_list_class.where(
+              "#{scope_condition} AND #{position_column} > #{send(position_column).to_i}"
+            ).update_all("#{position_column} = (#{position_column} - 1)")
           end
 
           # This has the effect of moving all the higher items down one.
           def increment_positions_on_higher_items
             return unless in_list?
-            acts_as_list_class.update_all(
-              "#{position_column} = (#{position_column} + 1)", "#{scope_condition} AND #{position_column} < #{send(position_column).to_i}"
-            )
+            acts_as_list_class.where(
+              "#{scope_condition} AND #{position_column} < #{send(position_column).to_i}"
+            ).update_all("#{position_column} = (#{position_column} + 1)")
           end
 
           # This has the effect of moving all the lower items down one.
           def increment_positions_on_lower_items(position)
-            acts_as_list_class.update_all(
-              "#{position_column} = (#{position_column} + 1)", "#{scope_condition} AND #{position_column} >= #{position}"
-           )
+            acts_as_list_class.where(
+              "#{scope_condition} AND #{position_column} >= #{position}"
+           ).update_all("#{position_column} = (#{position_column} + 1)")
           end
 
           # Increments position (<tt>position_column</tt>) of all items in the list.
           def increment_positions_on_all_items
-            acts_as_list_class.update_all(
-              "#{position_column} = (#{position_column} + 1)",  "#{scope_condition}"
-            )
+            acts_as_list_class.where(
+              "#{scope_condition}"
+            ).update_all("#{position_column} = (#{position_column} + 1)")
           end
 
           def insert_at_position(position)

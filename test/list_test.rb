@@ -4,6 +4,21 @@ require 'rubygems'
 gem 'activerecord', '>= 1.15.4.7794'
 require 'active_record'
 
+# Provide a backwards compatible +find+ API for tests running on modern Rails.
+class << ActiveRecord::Base
+  alias_method :_original_find, :find
+
+  def find(*args)
+    if [:first, :all].include?(args.first)
+      options = args.extract_options!
+      scope = where(options[:conditions]).order(options[:order])
+      args.first == :first ? scope.first : scope.to_a
+    else
+      _original_find(*args)
+    end
+  end
+end
+
 require "#{File.dirname(__FILE__)}/../init"
 
 ActiveRecord::Base.establish_connection(:adapter => "sqlite3", :database => ":memory:")
