@@ -230,7 +230,7 @@ class ListTest < Test::Unit::TestCase
     assert_equal [1, 2, 3, 4], ListMixin.find(:all, :conditions => 'parent_id = 5', :order => 'pos').map(&:id)
 
     # We need to trigger all the before_destroy callbacks without actually
-    # destroying the record so we can see the affect the callbacks have on
+    # destroying the record so we can see the effect the callbacks have on
     # the record.
     list = ListMixin.find(2)
     if list.respond_to?(:run_callbacks)
