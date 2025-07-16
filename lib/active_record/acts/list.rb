@@ -80,6 +80,8 @@ module ActiveRecord
           class_eval <<-EOV
             include ActiveRecord::Acts::List::InstanceMethods
 
+            cattr_accessor :acts_as_list_options
+
             def acts_as_list_class
               ::#{self.name}
             end
@@ -92,7 +94,10 @@ module ActiveRecord
 
             before_destroy :decrement_positions_on_lower_items
             before_create  :add_to_list_bottom
+            before_update  :acts_as_list_handle_scope_change
+            after_update   :acts_as_list_restore_position
           EOV
+          self.acts_as_list_options = configuration
         end
       end
 
@@ -295,11 +300,66 @@ module ActiveRecord
           end
 
           # Increments position (<tt>position_column</tt>) of all items in the list.
-          def increment_positions_on_all_items
-            acts_as_list_class.where(
-              scope_condition
-            ).update_all("#{position_column} = (#{position_column} + 1)")
+        def increment_positions_on_all_items
+          acts_as_list_class.where(
+            scope_condition
+          ).update_all("#{position_column} = (#{position_column} + 1)")
+        end
+
+        def acts_as_list_handle_scope_change
+          return unless acts_as_list_scope_changed?
+
+          old_scope = acts_as_list_old_scope_condition
+          old_position = send("#{position_column}_was")
+          if old_position
+            acts_as_list_class.where([
+              "#{old_scope} AND #{position_column} > ?", old_position.to_i
+            ]).update_all("#{position_column} = (#{position_column} - 1)")
           end
+          self[position_column] = nil
+          @__aal_scope_changed = true
+        end
+
+        def acts_as_list_restore_position
+          return unless @__aal_scope_changed
+          update_column(position_column, bottom_position_in_list.to_i + 1)
+        end
+
+        def acts_as_list_scope_changed?
+          scope = acts_as_list_class.acts_as_list_options[:scope]
+          case scope
+          when Symbol
+            attribute_changed?(scope)
+          when Array
+            scope.any? { |attr| attribute_changed?(attr) }
+          else
+            false
+          end
+        end
+
+        def acts_as_list_old_scope_condition
+          scope = acts_as_list_class.acts_as_list_options[:scope]
+          case scope
+          when Symbol
+            val = send("#{scope}_was")
+            self.class.send(:sanitize_sql_hash_for_conditions, { scope => val })
+          when Array
+            attrs = scope.each_with_object({}) { |a, memo| memo[a] = send("#{a}_was") }
+            self.class.send(:sanitize_sql_hash_for_conditions, attrs)
+          else
+            scope_condition
+          end
+        end
+
+        def attribute_changed?(attr)
+          if respond_to?("will_save_change_to_#{attr}?")
+            send("will_save_change_to_#{attr}?")
+          elsif respond_to?("#{attr}_changed?")
+            send("#{attr}_changed?")
+          else
+            false
+          end
+        end
 
           def insert_at_position(position)
             remove_from_list
