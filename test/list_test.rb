@@ -263,6 +263,20 @@ class ListTest < Test::Unit::TestCase
     assert_equal 3, ListMixin.find(4).pos
   end
 
+  def test_scope_change_reorders_lists
+    item1 = ListMixin.create!(:parent_id => 10)
+    item2 = ListMixin.create!(:parent_id => 10)
+    item3 = ListMixin.create!(:parent_id => 20)
+
+    item2.update!(:parent_id => 20)
+
+    assert_equal [item1.id], ListMixin.where(:parent_id => 10).order('pos').map(&:id)
+    assert_equal [item3.id, item2.id], ListMixin.where(:parent_id => 20).order('pos').map(&:id)
+    assert_equal 1, item1.reload.pos
+    assert_equal 1, item3.reload.pos
+    assert_equal 2, item2.reload.pos
+  end
+
 end
 
 class ListSubTest < Test::Unit::TestCase
