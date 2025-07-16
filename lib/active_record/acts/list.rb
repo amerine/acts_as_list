@@ -49,7 +49,7 @@ module ActiveRecord
         #   to give it an entire string that is interpolated if you need a tighter scope than just a foreign key.
         #   Example: <tt>acts_as_list :scope => 'todo_list_id = #{todo_list_id} AND completed = 0'</tt>
         def acts_as_list(options = {})
-          configuration = { :column => "position", :scope => "1 = 1" }
+          configuration = { :column => "position", :scope => "1 = 1", :bulk_reorder => false }
           configuration.update(options) if options.is_a?(Hash)
 
           configuration[:scope] = "#{configuration[:scope]}_id".intern if configuration[:scope].is_a?(Symbol) && configuration[:scope].to_s !~ /_id$/
@@ -98,6 +98,24 @@ module ActiveRecord
             after_update   :acts_as_list_restore_position
           EOV
           self.acts_as_list_options = configuration
+        end
+
+        def reorder_list(ids)
+          raise ArgumentError, 'Bulk reorder disabled' unless acts_as_list_options[:bulk_reorder]
+          ids = Array(ids).map(&:to_i)
+          return if ids.empty?
+
+          records = where(primary_key => ids).to_a
+          return if records.empty?
+          scope_sql = records.first.scope_condition
+          raise ArgumentError, 'All records must be in the same scope' unless records.all? { |r| r.scope_condition == scope_sql }
+
+          case_statements = ids.each_with_index.map { |id, index| "WHEN #{id} THEN #{index + 1}" }.join(' ')
+          update_sql = "#{connection.quote_column_name(acts_as_list_options[:column])} = CASE #{connection.quote_column_name(primary_key)} #{case_statements} END"
+
+          transaction do
+            where(scope_sql).where(primary_key => ids).update_all(update_sql)
+          end
         end
       end
 

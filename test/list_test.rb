@@ -69,6 +69,12 @@ class ArrayScopeListMixin < Mixin
   def self.table_name() "mixins" end
 end
 
+class BulkListMixin < Mixin
+  acts_as_list :column => "pos", :scope => :parent, :bulk_reorder => true
+
+  def self.table_name() "mixins" end
+end
+
 class ListTest < Test::Unit::TestCase
 
   def setup
@@ -601,5 +607,27 @@ class ArrayScopeListTest < Test::Unit::TestCase
     assert_equal 3, ArrayScopeListMixin.find(4).pos
   end 
   
+end
+
+
+class BulkReorderTest < Test::Unit::TestCase
+
+  def setup
+    setup_db
+    (1..4).each { |counter| BulkListMixin.create! :pos => counter, :parent_id => 100 }
+  end
+
+  def teardown
+    teardown_db
+  end
+
+  def test_reorder_list
+    ids = BulkListMixin.where(:parent_id => 100).order('pos').pluck(:id)
+    assert_equal [1, 2, 3, 4], ids
+
+    BulkListMixin.reorder_list(ids.reverse)
+
+    assert_equal ids.reverse, BulkListMixin.where(:parent_id => 100).order('pos').pluck(:id)
+  end
 end
 
