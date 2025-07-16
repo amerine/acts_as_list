@@ -216,7 +216,7 @@ module ActiveRecord
           # This has the effect of moving all the higher items up one.
           def decrement_positions_on_higher_items(position)
             acts_as_list_class.update_all(
-              "#{position_column} = (#{position_column} - 1)", "#{scope_condition} AND #{position_column} <= #{position}"
+              "#{position_column} = (#{position_column} - 1)", "#{scope_condition} AND #{position_column} < #{position}"
             )
           end
 
