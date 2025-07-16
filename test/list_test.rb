@@ -2,7 +2,7 @@ require 'test/unit'
 
 require 'rubygems'
 require 'logger'
-gem 'activerecord', '>= 1.15.4.7794'
+gem 'activerecord', '~> 6.1.7'
 require 'active_record'
 
 # Provide a backwards compatible +find+ API for tests running on modern Rails.
