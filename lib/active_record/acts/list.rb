@@ -55,22 +55,26 @@ module ActiveRecord
           configuration[:scope] = "#{configuration[:scope]}_id".intern if configuration[:scope].is_a?(Symbol) && configuration[:scope].to_s !~ /_id$/
 
           if configuration[:scope].is_a?(Symbol)
-            scope_condition_method = %(
+            scope_key = configuration[:scope].to_sym.inspect
+            scope_condition_method = <<-RUBY
               def scope_condition
-                self.class.send(:sanitize_sql_hash_for_conditions, { :#{configuration[:scope].to_s} => send(:#{configuration[:scope].to_s}) })
+                self.class.send(:sanitize_sql_hash_for_conditions, { #{scope_key} => send(#{scope_key}) })
               end
-            )
+            RUBY
           elsif configuration[:scope].is_a?(Array)
-            scope_condition_method = %(
+            scope_columns = configuration[:scope].map { |c| c.to_sym.inspect }.join(', ')
+            scope_condition_method = <<-RUBY
               def scope_condition
-                attrs = %w(#{configuration[:scope].join(" ")}).inject({}) do |memo,column| 
-                  memo[column.intern] = send(column.intern); memo
+                attrs = [#{scope_columns}].inject({}) do |memo, column|
+                  memo[column] = send(column); memo
                 end
                 self.class.send(:sanitize_sql_hash_for_conditions, attrs)
               end
-            )
+            RUBY
           else
-            scope_condition_method = "def scope_condition() \"#{configuration[:scope]}\" end"
+            scope_string = configuration[:scope].to_s
+            scope_string = scope_string.gsub(/\\/, '\\\\').gsub(/"/, '\\"')
+            scope_condition_method = "def scope_condition() \"#{scope_string}\" end"
           end
 
           class_eval <<-EOV
@@ -81,7 +85,7 @@ module ActiveRecord
             end
 
             def position_column
-              '#{configuration[:column]}'
+              #{configuration[:column].to_s.inspect}
             end
 
             #{scope_condition_method}
