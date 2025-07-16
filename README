@@ -29,5 +29,10 @@ Soft Delete
     acts_as_list scope: :todo_list, soft_delete_mode: true
   end
 
+  # Custom column name
+  class ArchivedItem < ActiveRecord::Base
+    acts_as_list scope: :todo_list, soft_delete_mode: true, soft_delete_column: :deleted_at
+  end
+
 
 Copyright (c) 2007 David Heinemeier Hansson, released under the MIT license

@@ -59,11 +59,12 @@ module ActiveRecord
 
           if configuration[:scope].is_a?(Symbol)
             scope_key = configuration[:scope].to_sym.inspect
-            soft_condition = soft_delete_mode ? "[cond, self.class.send(:sanitize_sql_hash_for_conditions, { #{soft_delete_column.inspect} => nil })].join(' AND ')" : 'cond'
             scope_condition_method = <<-RUBY
               def scope_condition
                 cond = self.class.send(:sanitize_sql_hash_for_conditions, { #{scope_key} => send(#{scope_key}) })
-                #{soft_delete_mode ? "cond = #{soft_condition}" : ''}
+                if self.class.acts_as_list_soft_delete_mode
+                  cond = [cond, self.class.send(:sanitize_sql_hash_for_conditions, { #{soft_delete_column.inspect} => nil })].join(' AND ')
+                end
                 cond
               end
             RUBY
@@ -75,14 +76,16 @@ module ActiveRecord
                   memo[column] = send(column); memo
                 end
                 cond = self.class.send(:sanitize_sql_hash_for_conditions, attrs)
-                #{soft_delete_mode ? "cond = [cond, self.class.send(:sanitize_sql_hash_for_conditions, { #{soft_delete_column.inspect} => nil })].join(' AND ')" : ''}
+                if self.class.acts_as_list_soft_delete_mode
+                  cond = [cond, self.class.send(:sanitize_sql_hash_for_conditions, { #{soft_delete_column.inspect} => nil })].join(' AND ')
+                end
                 cond
               end
             RUBY
           else
             scope_string = configuration[:scope].to_s
             scope_string = scope_string.gsub(/\\/, '\\\\').gsub(/"/, '\\"')
-            scope_condition_method = "def scope_condition() cond = \"#{scope_string}\"; #{soft_delete_mode ? 'cond = [cond, self.class.send(:sanitize_sql_hash_for_conditions, { :'+soft_delete_column.to_s+' => nil })].join(\" AND \")' : ''}; cond end"
+            scope_condition_method = "def scope_condition() cond = \"#{scope_string}\"; if self.class.acts_as_list_soft_delete_mode; cond = [cond, self.class.send(:sanitize_sql_hash_for_conditions, { :#{soft_delete_column} => nil })].join(\" AND \" ); end; cond end"
           end
 
           class_eval <<-EOV
@@ -101,12 +104,18 @@ module ActiveRecord
             before_destroy :decrement_positions_on_lower_items
             before_create  :add_to_list_bottom
 
+            cattr_accessor :acts_as_list_soft_delete_mode
+            cattr_accessor :acts_as_list_soft_delete_column
+
+            self.acts_as_list_soft_delete_mode = #{soft_delete_mode}
+            self.acts_as_list_soft_delete_column = #{soft_delete_column.inspect}
+
             def acts_as_list_soft_delete_mode?
-              #{soft_delete_mode}
+              self.class.acts_as_list_soft_delete_mode
             end
 
             def acts_as_list_soft_delete_column
-              #{soft_delete_column.inspect}
+              self.class.acts_as_list_soft_delete_column
             end
           EOV
         end
