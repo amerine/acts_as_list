@@ -1,6 +1,7 @@
 require 'test/unit'
 
 require 'rubygems'
+require 'logger'
 gem 'activerecord', '>= 1.15.4.7794'
 require 'active_record'
 
