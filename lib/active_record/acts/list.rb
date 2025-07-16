@@ -160,6 +160,18 @@ module ActiveRecord
                     (in_list? && self.send(position_column).to_i > item.send(position_column).to_i ? 1 : 0))
         end
 
+        # Swap this item's position with +item+ while maintaining list integrity.
+        def swap_positions_with(item)
+          return unless item && in_list? && item.in_list?
+          raise ArgumentError, 'You can only swap with an item in the same scope.' unless scope_condition == item.scope_condition
+
+          acts_as_list_class.transaction do
+            other_position = item.send(position_column)
+            item.update_attribute(position_column, send(position_column))
+            update_attribute(position_column, other_position)
+          end
+        end
+
         # Removes the item from the list.
         def remove_from_list
           if in_list?
