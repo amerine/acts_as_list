@@ -49,16 +49,22 @@ module ActiveRecord
         #   to give it an entire string that is interpolated if you need a tighter scope than just a foreign key.
         #   Example: <tt>acts_as_list :scope => 'todo_list_id = #{todo_list_id} AND completed = 0'</tt>
         def acts_as_list(options = {})
-          configuration = { :column => "position", :scope => "1 = 1" }
+          configuration = { :column => "position", :scope => "1 = 1", :soft_delete_mode => false, :soft_delete_column => "discarded_at" }
           configuration.update(options) if options.is_a?(Hash)
+
+          soft_delete_mode   = configuration.delete(:soft_delete_mode)
+          soft_delete_column = configuration.delete(:soft_delete_column)
 
           configuration[:scope] = "#{configuration[:scope]}_id".intern if configuration[:scope].is_a?(Symbol) && configuration[:scope].to_s !~ /_id$/
 
           if configuration[:scope].is_a?(Symbol)
             scope_key = configuration[:scope].to_sym.inspect
+            soft_condition = soft_delete_mode ? "[cond, self.class.send(:sanitize_sql_hash_for_conditions, { #{soft_delete_column.inspect} => nil })].join(' AND ')" : 'cond'
             scope_condition_method = <<-RUBY
               def scope_condition
-                self.class.send(:sanitize_sql_hash_for_conditions, { #{scope_key} => send(#{scope_key}) })
+                cond = self.class.send(:sanitize_sql_hash_for_conditions, { #{scope_key} => send(#{scope_key}) })
+                #{soft_delete_mode ? "cond = #{soft_condition}" : ''}
+                cond
               end
             RUBY
           elsif configuration[:scope].is_a?(Array)
@@ -68,13 +74,15 @@ module ActiveRecord
                 attrs = [#{scope_columns}].inject({}) do |memo, column|
                   memo[column] = send(column); memo
                 end
-                self.class.send(:sanitize_sql_hash_for_conditions, attrs)
+                cond = self.class.send(:sanitize_sql_hash_for_conditions, attrs)
+                #{soft_delete_mode ? "cond = [cond, self.class.send(:sanitize_sql_hash_for_conditions, { #{soft_delete_column.inspect} => nil })].join(' AND ')" : ''}
+                cond
               end
             RUBY
           else
             scope_string = configuration[:scope].to_s
             scope_string = scope_string.gsub(/\\/, '\\\\').gsub(/"/, '\\"')
-            scope_condition_method = "def scope_condition() \"#{scope_string}\" end"
+            scope_condition_method = "def scope_condition() cond = \"#{scope_string}\"; #{soft_delete_mode ? 'cond = [cond, self.class.send(:sanitize_sql_hash_for_conditions, { :'+soft_delete_column.to_s+' => nil })].join(\" AND \")' : ''}; cond end"
           end
 
           class_eval <<-EOV
@@ -92,6 +100,14 @@ module ActiveRecord
 
             before_destroy :decrement_positions_on_lower_items
             before_create  :add_to_list_bottom
+
+            def acts_as_list_soft_delete_mode?
+              #{soft_delete_mode}
+            end
+
+            def acts_as_list_soft_delete_column
+              #{soft_delete_column.inspect}
+            end
           EOV
         end
       end
@@ -111,8 +127,16 @@ module ActiveRecord
           return unless lower_item
 
           acts_as_list_class.transaction do
-            lower_item.decrement_position
-            increment_position
+            if acts_as_list_soft_delete_mode?
+              lower = lower_item
+              lower_pos = lower.send(position_column)
+              self_pos  = self.send(position_column)
+              lower.update_attribute(position_column, self_pos)
+              update_attribute(position_column, lower_pos)
+            else
+              lower_item.decrement_position
+              increment_position
+            end
           end
         end
 
@@ -121,8 +145,16 @@ module ActiveRecord
           return unless higher_item
 
           acts_as_list_class.transaction do
-            higher_item.increment_position
-            decrement_position
+            if acts_as_list_soft_delete_mode?
+              higher = higher_item
+              higher_pos = higher.send(position_column)
+              self_pos   = self.send(position_column)
+              higher.update_attribute(position_column, self_pos)
+              update_attribute(position_column, higher_pos)
+            else
+              higher_item.increment_position
+              decrement_position
+            end
           end
         end
 
@@ -207,17 +239,27 @@ module ActiveRecord
         # Return the next higher item in the list.
         def higher_item
           return nil unless in_list?
-          acts_as_list_class.where(
-            ["#{scope_condition} AND #{position_column} = ?", send(position_column).to_i - 1]
-          ).first
+          if acts_as_list_soft_delete_mode?
+            acts_as_list_class.where(["#{scope_condition} AND #{position_column} < ?", send(position_column).to_i])
+                              .order("#{position_column} DESC").first
+          else
+            acts_as_list_class.where(
+              ["#{scope_condition} AND #{position_column} = ?", send(position_column).to_i - 1]
+            ).first
+          end
         end
 
         # Return the next lower item in the list.
         def lower_item
           return nil unless in_list?
-          acts_as_list_class.where(
-            ["#{scope_condition} AND #{position_column} = ?", send(position_column).to_i + 1]
-          ).first
+          if acts_as_list_soft_delete_mode?
+            acts_as_list_class.where(["#{scope_condition} AND #{position_column} > ?", send(position_column).to_i])
+                              .order("#{position_column} ASC").first
+          else
+            acts_as_list_class.where(
+              ["#{scope_condition} AND #{position_column} = ?", send(position_column).to_i + 1]
+            ).first
+          end
         end
 
         # Test if this record is in a list

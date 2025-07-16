@@ -22,5 +22,13 @@ Example
   todo_list.last.move_above(todo_list.first)
   todo_list.first.swap_positions_with(todo_list.last)
 
+Soft Delete
+-----------
+
+  # Ignore records with a `discarded_at` timestamp when ordering
+  class ArchivedItem < ActiveRecord::Base
+    acts_as_list scope: :todo_list, soft_delete_mode: true
+  end
+
 
 Copyright (c) 2007 David Heinemeier Hansson, released under the MIT license
